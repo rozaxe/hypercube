@@ -12,24 +12,24 @@ import io.ktor.server.netty.Netty
 import me.rozaxe.hypercube.*
 
 fun main(args: Array<String>) {
-	embeddedServer(Netty, 8080) {
-		install(Hypercube)
-		routing {
-			hypercube {
-				onOpen {
-					broadcast("info", "Member joined")
-				}
+    embeddedServer(Netty, 8080) {
+        install(Hypercube)
+        routing {
+            hypercube {
+                onOpen {
+                    broadcast("info", "Member joined")
+                }
 
-				on("message", String::class) { content ->
-					broadcast("message", content)
-				}
+                on("message", String::class) { content ->
+                    broadcast("message", content)
+                }
 
-				onClose {
-					broadcast("info", "Member left")
-				}
-			}
-		}
-	}.start(wait = true)
+                onClose {
+                    broadcast("info", "Member left")
+                }
+            }
+        }
+    }.start(wait = true)
 }
 ```
 
