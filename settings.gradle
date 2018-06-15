@@ -1,0 +1,4 @@
+rootProject.name = 'hypercube'
+
+include ':chat'
+project(':chat').projectDir = "$rootDir/samples/chat" as File

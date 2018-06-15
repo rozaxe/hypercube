@@ -85,22 +85,22 @@ class HypercubeSockets {
 	/**
 	 * Callback on new connection.
 	 */
-	internal var onOpen: (suspend HypercubeSession.() -> Unit)? = null
+	internal var onOpenCallback: (suspend HypercubeSession.() -> Unit)? = null
 
 	/**
 	 * Callback on connection closed.
 	 */
-	internal var onClose: (suspend HypercubeId.() -> Unit)? = null
+	internal var onCloseCallback: (suspend HypercubeId.() -> Unit)? = null
 
 	/**
 	 * Callback on error while parsing incoming message.
 	 */
-	internal var onParsingError: (suspend HypercubeSession.() -> Unit)? = null
+	internal var onParsingErrorCallback: (suspend HypercubeSession.() -> Unit)? = null
 
 	/**
 	 * Callback when incoming event is unknown
 	 */
-	internal var onUnknownEvent: (suspend HypercubeSession.(event: String) -> Unit)? = null
+	internal var onUnknownEventCallback: (suspend HypercubeSession.(event: String) -> Unit)? = null
 
 	/**
 	 * Broadcast event and it's data if any to all connected sockets.
@@ -157,7 +157,7 @@ class HypercubeSession(id: String, private val socket: WebSocketSession) : Hyper
 
 	/**
 	 * Send close frame to channel.
-	 * It will cause [HypercubeSockets.onClose] to be called.
+	 * It will cause [HypercubeSockets.onCloseCallback] to be called.
 	 */
 	suspend fun close() {
 		try { socket.outgoing.send(Frame.Close()) } catch (_: ClosedSendChannelException) {}
@@ -179,7 +179,7 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 		val session = HypercubeSession(nextNonce(), this)
 
 		hypercubeSockets.sockets.add(session)
-		hypercubeSockets.onOpen?.invoke(session)
+		hypercubeSockets.onOpenCallback?.invoke(session)
 
 		try {
 			incoming.mapNotNull { it as? Frame.Text }.consumeEach { frame ->
@@ -188,7 +188,7 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 				val message = try {
 					val protocolOrNull = protocolAdapter.fromJson(raw)
 					if (protocolOrNull == null) {
-						hypercubeSockets.onParsingError?.invoke(session)
+						hypercubeSockets.onParsingErrorCallback?.invoke(session)
 						return@consumeEach
 
 					} else {
@@ -196,11 +196,11 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 					}
 
 				} catch (_: JsonDataException) {
-					hypercubeSockets.onParsingError?.invoke(session)
+					hypercubeSockets.onParsingErrorCallback?.invoke(session)
 					return@consumeEach
 
 				} catch (_: IOException) {
-					hypercubeSockets.onParsingError?.invoke(session)
+					hypercubeSockets.onParsingErrorCallback?.invoke(session)
 					return@consumeEach
 				}
 
@@ -209,7 +209,7 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 					val function = hypercubeSockets.functions[message.event]
 
 					if (function == null) {
-						hypercubeSockets.onUnknownEvent?.invoke(session, message.event)
+						hypercubeSockets.onUnknownEventCallback?.invoke(session, message.event)
 						return@consumeEach
 					}
 
@@ -219,7 +219,7 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 						function.handler.invoke(session, typedData)
 
 					} catch (_: JsonDataException) {
-						hypercubeSockets.onParsingError?.invoke(session)
+						hypercubeSockets.onParsingErrorCallback?.invoke(session)
 					}
 				} else {
 					// Data field is missing, must be a callback
@@ -227,31 +227,31 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 						hypercubeSockets.callbacks.getValue(message.event).invoke(session)
 
 					} else {
-						hypercubeSockets.onUnknownEvent?.invoke(session, message.event)
+						hypercubeSockets.onUnknownEventCallback?.invoke(session, message.event)
 					}
 				}
 			}
 		} finally {
 			hypercubeSockets.sockets.remove(session)
-			hypercubeSockets.onClose?.invoke(session)
+			hypercubeSockets.onCloseCallback?.invoke(session)
 		}
 	}
 }
 
 fun HypercubeSockets.onOpen(handler: suspend HypercubeSession.() -> Unit) {
-	onOpen = handler
+	onOpenCallback = handler
 }
 
 fun HypercubeSockets.onClose(handler: suspend HypercubeId.() -> Unit) {
-	onClose = handler
+	onCloseCallback = handler
 }
 
 fun HypercubeSockets.onParsingError(handler: suspend HypercubeSession.() -> Unit) {
-	onParsingError = handler
+	onParsingErrorCallback = handler
 }
 
 fun HypercubeSockets.onUnknownEvent(handler: suspend HypercubeSession.(String) -> Unit) {
-	onUnknownEvent = handler
+	onUnknownEventCallback = handler
 }
 
 /**
