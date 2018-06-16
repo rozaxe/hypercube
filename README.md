@@ -22,7 +22,7 @@ fun main(args: Array<String>) {
                     broadcast("info", "Member joined")
                 }
 
-                on("message", String::class) { content ->
+                on("message") { content: String ->
                     broadcast("message", content)
                 }
 
@@ -54,7 +54,7 @@ repositories {
 Add the dependency for Hypercube 
 ```
 dependencies {
-    compile 'com.github.rozaxe:hypercube:0.1.0'
+    compile 'com.github.rozaxe:hypercube:0.1.1'
 }
 ```
 
@@ -86,8 +86,7 @@ fun main(args: Array<String>) {
                 }
 
                 // Register for "message" event, and parse data as string
-                on("message", String::class) { content ->
-                    // "content" is now a fully casted string
+                on("message") { content: String ->
 
                     // Emit back an event to the client
                     emit("message", content)

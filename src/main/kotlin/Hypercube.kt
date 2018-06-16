@@ -292,7 +292,12 @@ fun HypercubeSockets.on(event: String, handler: suspend HypercubeSession.() -> U
 }
 
 /**
- * Register a function for given event
+ * Register a function for given event (inline)
+ */
+inline fun <reified T : Any> HypercubeSockets.on(event: String, noinline handler: suspend HypercubeSession.(T) -> Unit) = on(event, T::class, handler)
+
+/**
+ * Register a function for a given event (non inline)
  */
 fun <T : Any> HypercubeSockets.on(event: String, type: KClass<T>, handler:  suspend HypercubeSession.(T) -> Unit) {
 	@Suppress("UNCHECKED_CAST") // T derives from Any, so the cast cannot fails (right ?)

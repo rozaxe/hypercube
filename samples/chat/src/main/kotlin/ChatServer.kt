@@ -36,11 +36,11 @@ class ChatApplication {
 					server.memberJoin(id)
 				}
 
-				on("message", String::class) { message ->
+				on("message") { message: String ->
 					server.receivedMessage(id, message)
 				}
 
-				on("nickname", String::class) { nickname ->
+				on("nickname") { nickname: String ->
 					server.changeNickname(id, nickname)
 				}
 
