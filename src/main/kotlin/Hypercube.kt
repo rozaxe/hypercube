@@ -26,25 +26,48 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KClass
 
+/**
+ * Hypercube support feature. It is required to be installed first before binding any hypercube endpoints.
+ *
+ * ```
+ * install(Hypercube)
+ *
+ * install(Routing) {
+ *     hypercube("/hc") {
+ *          onOpen { ... }
+ *          on("message", String::class) { ... }
+ *          on("ping") { ... }
+ *          onClose { ... }
+ *     }
+ * }
+ * ```
+ */
 class Hypercube {
 
-	class Configuration {
+	/**
+	 * Same as [WebSockets.WebSocketOptions]
+	 */
+	class HypercubeOptions {
 		var pingPeriod: Duration? = null
 		var timeout: Duration = Duration.ofSeconds(15)
+		var maxFrameSize: Long = Long.MAX_VALUE
+		var masking: Boolean = false
 	}
 
-	companion object Feature : ApplicationFeature<Application, Configuration, Hypercube> {
+	companion object Feature : ApplicationFeature<Application, HypercubeOptions, Hypercube> {
 		override val key = AttributeKey<Hypercube>("Hypercube")
 
-		override fun install(pipeline: Application, configure: Configuration.() -> Unit): Hypercube {
+		override fun install(pipeline: Application, configure: HypercubeOptions.() -> Unit): Hypercube {
 
-			val configuration = Configuration().apply(configure)
+			val configuration = HypercubeOptions().apply(configure)
 			val feature = Hypercube()
 
 			// Add WebSocket feature to application
 			pipeline.install(WebSockets) {
 				pingPeriod = configuration.pingPeriod
 				timeout = configuration.timeout
+				maxFrameSize = configuration.maxFrameSize
+				masking = configuration.masking
 			}
 
 			return feature
@@ -130,6 +153,9 @@ open class HypercubeId(val id: String) : Comparable<HypercubeSession> {
 	}
 }
 
+/**
+ * Exposes dialogue with a websocket client
+ */
 class HypercubeSession(id: String, private val socket: WebSocketSession) : HypercubeId(id) {
 
 	/**
@@ -157,7 +183,7 @@ class HypercubeSession(id: String, private val socket: WebSocketSession) : Hyper
 
 	/**
 	 * Send close frame to channel.
-	 * It will cause [HypercubeSockets.onCloseCallback] to be called.
+	 * It will cause [HypercubeSockets.onClose] to be called.
 	 */
 	suspend fun close() {
 		try { socket.outgoing.send(Frame.Close()) } catch (_: ClosedSendChannelException) {}
@@ -172,12 +198,15 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 	val hypercubeSockets = HypercubeSockets()
 	handler.invoke(hypercubeSockets)
 
+	// Use Moshi as incoming message parser
 	val parser = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 	val protocolAdapter = parser.adapter(HypercubeProtocol::class.java)
 
 	webSocket(path) {
+		/** Someone connects, generate a unique id */
 		val session = HypercubeSession(nextNonce(), this)
 
+		/** Calls [HypercubeSockets.onOpen] */
 		hypercubeSockets.sockets.add(session)
 		hypercubeSockets.onOpenCallback?.invoke(session)
 
@@ -232,6 +261,7 @@ fun Route.hypercube(path: String = "/", handler: HypercubeSockets.() -> Unit) {
 				}
 			}
 		} finally {
+			/** Calls [HypercubeSockets.onClose] */
 			hypercubeSockets.sockets.remove(session)
 			hypercubeSockets.onCloseCallback?.invoke(session)
 		}
